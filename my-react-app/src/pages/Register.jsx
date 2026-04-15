@@ -74,7 +74,7 @@ const Register = () => {
         </form>
         
         <p className="auth-footer">
-          Еще нет аккаунта? <Link to="/login" className="auth-link" style={{color: 'var(--primary)', fontWeight: 'bold', textDecoration: 'none'}}>Войти</Link>
+          Уже зарегистрированы? <Link to="/login" className="auth-link" style={{color: 'var(--primary)', fontWeight: 'bold', textDecoration: 'none'}}>Войти</Link>
         </p>
       </div>
     </div>
