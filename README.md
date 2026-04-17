@@ -1,117 +1,192 @@
 # BookHub
 
-BookHub is a full-stack online library built with Django REST Framework and React. Users can browse books, save favorites, read full texts in a custom reader mode, publish reviews, manage their profile, and restore account access through a password reset flow.
+**BookHub** — это full-stack веб-приложение онлайн-библиотеки, разработанное на `Django REST Framework` и `React`.
 
-## Stack
+Система позволяет:
+- просматривать каталог книг
+- читать книги во встроенной читалке
+- сохранять книги в избранное
+- оставлять отзывы и оценки
+- редактировать профиль
+- восстанавливать доступ к аккаунту через сброс пароля
 
-- Backend: Django, Django REST Framework, Simple JWT, WhiteNoise
-- Frontend: React, Vite, React Router, Axios
-- Database: SQLite for local development, PostgreSQL for deployment
-- Deployment: Docker + Render blueprint
+Проект подготовлен как учебная и дипломная работа с возможностью локального запуска и деплоя в интернет.
 
-## Features
+## Основной стек
 
-- registration and login with JWT authentication
-- catalog with search, genre filters, rating filters, and favorites
-- book page with average rating and user reviews
-- reader mode with theme switcher, font settings, and saved reading progress
-- profile editing with optional password change
-- password reset request and confirmation flow
-- Django admin for books, reviews, and favorites
-- single-service production deployment where Django serves the built React app
+- `Python`
+- `Django`
+- `Django REST Framework`
+- `Simple JWT`
+- `React`
+- `Vite`
+- `Axios`
+- `SQLite` для локальной разработки
+- `PostgreSQL` для деплоя
+- `Docker`
+- `Render`
 
-## Project Structure
+## Функциональные возможности
 
-- `backend/` - Django settings, routing, and deployment-facing views
-- `library/` - models, API, serializers, admin, and tests
-- `my-react-app/` - React frontend
-- `media/` - uploaded book covers
-- `render.yaml` - Render blueprint
-- `Dockerfile` - production image for the full app
+- регистрация и вход в систему по JWT-токенам
+- просмотр каталога книг
+- поиск по названию и автору
+- фильтрация по жанру
+- фильтрация по рейтингу
+- добавление книг в избранное
+- просмотр карточки книги
+- просмотр и публикация отзывов
+- встроенная читалка с настройкой темы и шрифта
+- сохранение прогресса чтения
+- предложение продолжить чтение с сохранённой страницы
+- редактирование профиля
+- смена пароля
+- восстановление пароля по email
+- административная панель Django
 
-## Requirements
+## Особенности проекта
 
-- Python 3.10+
-- Node.js 20+ for local frontend development and builds
+- фронтенд и бэкенд разделены, но подготовлены к работе как единое приложение
+- React-сборка может обслуживаться через Django на одном домене
+- добавлены backend-тесты на ключевые сценарии
+- подготовлены файлы для деплоя через `Render`
+- читалка оформлена как отдельный полноценный пользовательский сценарий
 
-## Local Setup
+## Структура проекта
 
-1. Create and activate a virtual environment.
-2. Install backend dependencies:
+- `backend/` — настройки Django, маршруты и служебные представления
+- `library/` — модели, сериализаторы, API, админка и тесты
+- `my-react-app/` — клиентская часть на React
+- `media/` — загружаемые файлы и обложки
+- `render.yaml` — конфигурация деплоя на Render
+- `Dockerfile` — сборка production-версии приложения
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+## Требования
 
-3. Copy `.env.example` to `.env`.
-4. Install frontend dependencies:
+- `Python 3.10+`
+- `Node.js 20+`
 
-   ```bash
-   cd my-react-app
-   npm install
-   ```
+## Локальный запуск
 
-5. Copy `my-react-app/.env.example` to `my-react-app/.env`.
+### 1. Установка backend-зависимостей
 
-## Local Run
+```bash
+pip install -r requirements.txt
+```
 
-Backend:
+### 2. Установка frontend-зависимостей
+
+```bash
+cd my-react-app
+npm install
+```
+
+### 3. Настройка переменных окружения
+
+Скопируйте:
+
+- `.env.example` в `.env`
+- `my-react-app/.env.example` в `my-react-app/.env`
+
+### 4. Запуск backend
 
 ```bash
 python manage.py migrate
 python manage.py runserver
 ```
 
-Frontend:
+### 5. Запуск frontend
 
 ```bash
 cd my-react-app
 npm run dev
 ```
 
-Open:
+После запуска:
 
-- frontend: `http://127.0.0.1:5173`
-- backend/API: `http://127.0.0.1:8000`
+- фронтенд будет доступен по адресу `http://127.0.0.1:5173`
+- backend/API будет доступен по адресу `http://127.0.0.1:8000`
 
-## Useful Commands
+## Полезные команды
+
+Проверка Django:
+
+```bash
+python manage.py check
+```
+
+Запуск тестов:
+
+```bash
+python manage.py test
+```
+
+Сборка фронтенда:
+
+```bash
+cd my-react-app && npm run build
+```
+
+Сборка статических файлов Django:
+
+```bash
+python manage.py collectstatic --noinput
+```
+
+## Деплой на Render
+
+Проект подготовлен под деплой в формате **одной публичной ссылки**, где:
+
+- Django обслуживает API
+- Django отдаёт админку
+- Django отдаёт собранный React
+- база данных подключается как PostgreSQL
+
+### Быстрый способ деплоя
+
+1. Запушить проект в GitHub.
+2. Открыть [Render](https://render.com).
+3. Выбрать `New +`.
+4. Выбрать `Blueprint`.
+5. Подключить репозиторий.
+6. Render автоматически считает `render.yaml` и создаст:
+   - web service
+   - PostgreSQL database
+7. Дождаться завершения деплоя.
+
+### Что уже подготовлено для деплоя
+
+- `render.yaml`
+- `Dockerfile`
+- health-check endpoint `/health/`
+- production-настройки Django
+- работа со статикой через `WhiteNoise`
+- подключение базы через `DATABASE_URL`
+
+## Что можно улучшить дальше
+
+- добавить импорт книг из файловых форматов
+- вынести хранение медиафайлов в внешнее хранилище
+- добавить больше тестов на фронтенд
+- расширить административную часть
+- добавить сиды или готовые демонстрационные данные
+
+## Проверка проекта
+
+Перед сдачей или деплоем рекомендуется выполнить:
 
 ```bash
 python manage.py check
 python manage.py test
 cd my-react-app && npm run build
-python manage.py collectstatic --noinput
 ```
 
-## Deployment on Render
+## Назначение проекта
 
-The project is prepared for a single public URL: Django serves the API, admin panel, media, and the built React frontend from one Render web service.
+Проект создан как демонстрация навыков full-stack разработки:
 
-### Fastest option
-
-1. Push the project to GitHub.
-2. In Render, choose **New + > Blueprint**.
-3. Select the repository.
-4. Render will read `render.yaml` and create:
-   - one Docker web service
-   - one PostgreSQL database
-5. Wait for the first deploy to finish.
-
-The service is configured with:
-
-- `render.yaml` for the infrastructure definition
-- `Dockerfile` for building the full Django + React app
-- `/health/` as a health check endpoint
-- `preDeployCommand` for migrations
-
-## Notes for Demo
-
-- In production, the app is meant to be opened from one link.
-- Password reset emails use the configured backend. Locally they are printed to the Django console by default.
-- If you want admin-uploaded media to persist long-term in production, the next step would be moving media storage to an external service such as S3-compatible storage.
-
-## Verification
-
-- `python manage.py check`
-- `python manage.py test`
-- `npm run build`
+- проектирование моделей и API
+- реализация авторизации и пользовательских сценариев
+- работа с React-интерфейсом
+- оформление удобной встроенной читалки
+- подготовка проекта к публичному деплою
