@@ -4,6 +4,8 @@ env/
 .env
 .env.local
 .env.*
+!.env.example
+!my-react-app/.env.example
 
 node_modules/
 my-react-app/node_modules/

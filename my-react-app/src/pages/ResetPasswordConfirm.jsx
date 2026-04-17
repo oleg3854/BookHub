@@ -1,23 +1,36 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { useNavigate, useParams } from 'react-router-dom';
+
+import { extractErrorMessage, publicApi } from '../api';
+
 
 const ResetPasswordConfirm = () => {
     const { uidb64, token } = useParams();
     const navigate = useNavigate();
     const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [status, setStatus] = useState('');
+    const [isError, setIsError] = useState(false);
 
-    const handleReset = async (e) => {
-        e.preventDefault();
+    const handleReset = async (event) => {
+        event.preventDefault();
+
+        if (newPassword !== confirmPassword) {
+            setStatus('Пароли не совпадают.');
+            setIsError(true);
+            return;
+        }
+
         try {
-            await axios.post(`http://127.0.0.1:8000/api/password-reset-confirm/${uidb64}/${token}/`, {
-                password: newPassword
+            await publicApi.post(`password-reset-confirm/${uidb64}/${token}/`, {
+                password: newPassword,
             });
             setStatus('Пароль успешно изменен! Теперь можно войти.');
-            setTimeout(() => navigate('/login'), 3000);
+            setIsError(false);
+            setTimeout(() => navigate('/login'), 1800);
         } catch (err) {
-            setStatus('Ошибка. Ссылка устарела или неверна.');
+            setStatus(extractErrorMessage(err, 'Ошибка. Ссылка устарела или неверна.'));
+            setIsError(true);
         }
     };
 
@@ -26,11 +39,19 @@ const ResetPasswordConfirm = () => {
             <div style={{ background: 'white', padding: '40px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', width: '350px' }}>
                 <h2 style={{ textAlign: 'center' }}>Новый пароль</h2>
                 <form onSubmit={handleReset} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <input 
-                        type="password" 
-                        placeholder="Введите новый пароль" 
+                    <input
+                        type="password"
+                        placeholder="Введите новый пароль"
                         value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
+                        onChange={(event) => setNewPassword(event.target.value)}
+                        style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ddd' }}
+                        required
+                    />
+                    <input
+                        type="password"
+                        placeholder="Повторите пароль"
+                        value={confirmPassword}
+                        onChange={(event) => setConfirmPassword(event.target.value)}
                         style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ddd' }}
                         required
                     />
@@ -38,10 +59,15 @@ const ResetPasswordConfirm = () => {
                         Обновить пароль
                     </button>
                 </form>
-                {status && <p style={{ marginTop: '20px', textAlign: 'center', color: '#4f46e5' }}>{status}</p>}
+                {status && (
+                    <p style={{ marginTop: '20px', textAlign: 'center', color: isError ? '#dc2626' : '#4f46e5' }}>
+                        {status}
+                    </p>
+                )}
             </div>
         </div>
     );
 };
+
 
 export default ResetPasswordConfirm;

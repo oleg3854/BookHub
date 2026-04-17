@@ -1,246 +1,830 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+
 import api from '../api';
 
-const Reader = () => {
-    const { id } = useParams();
-    const navigate = useNavigate();
-    
-    const [book, setBook] = useState(null);
-    const [loading, setLoading] = useState(true);
-    
-    const [currentPage, setCurrentPage] = useState(
-        parseInt(localStorage.getItem(`book-page-${id}`)) || 0
+
+const HEADER_PATTERNS = [
+  /^глава\b/i,
+  /^часть\b/i,
+  /^пролог\b/i,
+  /^эпилог\b/i,
+  /^chapter\b/i,
+  /^part\b/i,
+  /^prologue\b/i,
+  /^epilogue\b/i,
+];
+
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+const getProgressStorageKey = (bookId) => `book-progress-${bookId}`;
+const getLegacyPageStorageKey = (bookId) => `book-page-${bookId}`;
+
+
+const loadSavedProgress = (bookId) => {
+  const progressKey = getProgressStorageKey(bookId);
+  const legacyKey = getLegacyPageStorageKey(bookId);
+
+  try {
+    const savedProgress = localStorage.getItem(progressKey);
+    if (savedProgress) {
+      return JSON.parse(savedProgress);
+    }
+  } catch (error) {
+    console.error('Не удалось прочитать сохранённый прогресс:', error);
+  }
+
+  const legacyPage = Number.parseInt(localStorage.getItem(legacyKey), 10);
+  if (Number.isInteger(legacyPage) && legacyPage > 0) {
+    return { page: legacyPage, totalPages: legacyPage + 1, paragraphIndex: legacyPage * 5 };
+  }
+
+  return null;
+};
+
+
+const isHeadingParagraph = (text) => {
+  const normalized = text.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  if (HEADER_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return true;
+  }
+
+  return normalized.length <= 65 && !/[.!?…]/.test(normalized);
+};
+
+
+const normalizeParagraphs = (content) => {
+  if (!content) {
+    return [];
+  }
+
+  return content
+    .replace(/\r/g, '')
+    .split(/\n+/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((text, index) => ({
+      id: `${index}-${text.slice(0, 24)}`,
+      text,
+      isHeading: isHeadingParagraph(text),
+    }));
+};
+
+
+const getTargetCharactersPerPage = (viewportWidth, fontSize) => {
+  let baseTarget = 2400;
+
+  if (viewportWidth < 640) {
+    baseTarget = 1100;
+  } else if (viewportWidth < 900) {
+    baseTarget = 1500;
+  } else if (viewportWidth < 1280) {
+    baseTarget = 1900;
+  }
+
+  return Math.max(800, Math.round(baseTarget * (18 / fontSize)));
+};
+
+
+const paginateParagraphs = (paragraphs, viewportWidth, fontSize) => {
+  if (!paragraphs.length) {
+    return [];
+  }
+
+  const targetCharacters = getTargetCharactersPerPage(viewportWidth, fontSize);
+  const minParagraphs = viewportWidth < 640 ? 2 : 3;
+  const maxParagraphs = viewportWidth < 640 ? 5 : 7;
+
+  const pages = [];
+  let currentPage = [];
+  let currentCharacters = 0;
+  let pageStartIndex = 0;
+
+  const pushPage = () => {
+    if (!currentPage.length) {
+      return;
+    }
+
+    pages.push({
+      paragraphs: currentPage,
+      startIndex: pageStartIndex,
+      endIndex: pageStartIndex + currentPage.length - 1,
+    });
+
+    pageStartIndex += currentPage.length;
+    currentPage = [];
+    currentCharacters = 0;
+  };
+
+  paragraphs.forEach((paragraph) => {
+    const effectiveLength = paragraph.isHeading
+      ? Math.round(targetCharacters * 0.22)
+      : Math.max(90, paragraph.text.length);
+
+    const shouldStartNewPage = currentPage.length > 0 && (
+      (paragraph.isHeading && currentPage.length >= minParagraphs)
+      || (currentCharacters + effectiveLength > targetCharacters && currentPage.length >= minParagraphs)
+      || currentPage.length >= maxParagraphs
     );
 
-    const token = localStorage.getItem('access');
-    const [fontFamily, setFontFamily] = useState(localStorage.getItem('reader-font-family') || '"Georgia", serif');
-    const [fontSize, setFontSize] = useState(parseInt(localStorage.getItem('reader-font-size')) || 18);
-    const [theme, setTheme] = useState(localStorage.getItem('reader-theme') || 'light');
+    if (shouldStartNewPage) {
+      pushPage();
+    }
 
-    useEffect(() => {
-        if (!token) {
-            setLoading(false);
-            return;
-        }
+    currentPage.push(paragraph);
+    currentCharacters += effectiveLength;
+  });
 
-        api.get(`books/${id}/`)
-            .then(res => {
-                setBook(res.data);
-                setLoading(false);
-            })
-            .catch(err => {
-                console.error("Ошибка при загрузке книги:", err);
-                setLoading(false);
-            });
-    }, [id, token]);
+  pushPage();
+  return pages;
+};
 
-    useEffect(() => {
-    localStorage.setItem('reader-font-size', fontSize);
+
+const findPageByParagraphIndex = (pages, paragraphIndex) => {
+  if (!pages.length) {
+    return 0;
+  }
+
+  const pageIndex = pages.findIndex(
+    (page) => paragraphIndex >= page.startIndex && paragraphIndex <= page.endIndex,
+  );
+
+  if (pageIndex !== -1) {
+    return pageIndex;
+  }
+
+  return paragraphIndex > pages[pages.length - 1].endIndex ? pages.length - 1 : 0;
+};
+
+
+const renderDropCapParagraph = (text, color) => {
+  if (!text) {
+    return null;
+  }
+
+  const firstLetter = text.charAt(0);
+  const rest = text.slice(1);
+
+  return (
+    <>
+      <span
+        style={{
+          float: 'left',
+          fontSize: '3.6em',
+          lineHeight: 0.78,
+          paddingRight: '0.12em',
+          fontWeight: 800,
+          color,
+        }}
+      >
+        {firstLetter}
+      </span>
+      {rest}
+    </>
+  );
+};
+
+
+const Reader = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  const [book, setBook] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [anchorParagraphIndex, setAnchorParagraphIndex] = useState(0);
+  const [savedProgress, setSavedProgress] = useState(() => loadSavedProgress(id));
+  const [resumePrompt, setResumePrompt] = useState(null);
+  const [resumeChecked, setResumeChecked] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window === 'undefined' ? 1280 : window.innerWidth,
+  );
+
+  const token = localStorage.getItem('access');
+  const [fontFamily, setFontFamily] = useState(
+    localStorage.getItem('reader-font-family') || '"Georgia", serif',
+  );
+  const [fontSize, setFontSize] = useState(
+    Number.parseInt(localStorage.getItem('reader-font-size'), 10) || 18,
+  );
+  const [theme, setTheme] = useState(localStorage.getItem('reader-theme') || 'light');
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    setBook(null);
+    setLoading(true);
+    setCurrentPage(0);
+    setAnchorParagraphIndex(0);
+    setSavedProgress(loadSavedProgress(id));
+    setResumePrompt(null);
+    setResumeChecked(false);
+  }, [id]);
+
+  useEffect(() => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    api.get(`books/${id}/`)
+      .then((response) => {
+        setBook(response.data);
+      })
+      .catch((error) => {
+        console.error('Ошибка при загрузке книги:', error);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [id, token]);
+
+  const paragraphs = useMemo(
+    () => normalizeParagraphs(book?.content || ''),
+    [book?.content],
+  );
+
+  const pages = useMemo(
+    () => paginateParagraphs(paragraphs, viewportWidth, fontSize),
+    [paragraphs, viewportWidth, fontSize],
+  );
+
+  const totalPages = pages.length;
+  const currentPageData = pages[currentPage] || pages[0] || { paragraphs: [], startIndex: 0, endIndex: 0 };
+  const progressPercent = totalPages
+    ? Math.round(((currentPage + 1) / totalPages) * 100)
+    : 0;
+
+  useEffect(() => {
+    if (!pages.length) {
+      return;
+    }
+
+    if (!resumeChecked) {
+      const savedParagraphIndex = savedProgress?.paragraphIndex;
+
+      if (Number.isInteger(savedParagraphIndex) && savedParagraphIndex > 0) {
+        const targetPage = findPageByParagraphIndex(pages, savedParagraphIndex);
+        setResumePrompt({
+          pageIndex: targetPage,
+          paragraphIndex: savedParagraphIndex,
+        });
+      } else {
+        setCurrentPage(0);
+        setAnchorParagraphIndex(pages[0].startIndex);
+      }
+
+      setResumeChecked(true);
+      return;
+    }
+
+    const adjustedPage = findPageByParagraphIndex(pages, anchorParagraphIndex);
+    if (adjustedPage !== currentPage) {
+      setCurrentPage(adjustedPage);
+    }
+  }, [pages, savedProgress, resumeChecked, anchorParagraphIndex, currentPage]);
+
+  useEffect(() => {
+    if (!pages.length || resumePrompt) {
+      return;
+    }
+
+    const pageData = pages[currentPage] || pages[0];
+    if (pageData && pageData.startIndex !== anchorParagraphIndex) {
+      setAnchorParagraphIndex(pageData.startIndex);
+    }
+  }, [currentPage, pages, resumePrompt, anchorParagraphIndex]);
+
+  useEffect(() => {
+    localStorage.setItem('reader-font-size', String(fontSize));
     localStorage.setItem('reader-theme', theme);
     localStorage.setItem('reader-font-family', fontFamily);
-    localStorage.setItem(`book-page-${id}`, currentPage);
-}, [fontSize, theme, fontFamily, currentPage, id]);
 
-    if (!token) {
-        return (
-            <div style={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                height: '100vh', 
-                backgroundColor: '#f8fafc',
-                fontFamily: '"Inter", sans-serif',
-                textAlign: 'center',
-                padding: '20px'
-            }}>
-                <div style={{ 
-                    background: 'white', 
-                    padding: '40px', 
-                    borderRadius: '16px', 
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.05)',
-                    maxWidth: '400px'
-                }}>
-                    <span style={{ fontSize: '50px', marginBottom: '20px', display: 'block' }}>🔒</span>
-                    <h2 style={{ color: '#1e293b', marginBottom: '10px' }}>Доступ ограничен</h2>
-                    <p style={{ color: '#64748b', marginBottom: '30px', lineHeight: '1.5' }}>
-                        Чтобы погрузиться в чтение этой книги, вам нужно авторизоваться в системе.
-                    </p>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <button 
-                            onClick={() => navigate('/login')} 
-                            style={{ 
-                                padding: '14px', 
-                                borderRadius: '10px', 
-                                border: 'none', 
-                                background: '#4f46e5', 
-                                color: 'white', 
-                                fontWeight: '700', 
-                                fontSize: '16px',
-                                cursor: 'pointer',
-                                transition: '0.2s'
-                            }}
-                            onMouseOver={(e) => e.target.style.background = '#4338ca'}
-                            onMouseOut={(e) => e.target.style.background = '#4f46e5'}
-                        >
-                            Войти в аккаунт
-                        </button>
-                        
-                        <button 
-                            onClick={() => navigate('/catalog')} 
-                            style={{ 
-                                padding: '12px', 
-                                borderRadius: '10px', 
-                                border: '1px solid #e2e8f0', 
-                                background: 'transparent', 
-                                color: '#64748b', 
-                                fontWeight: '600',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            Вернуться в каталог
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
+    if (!pages.length || resumePrompt) {
+      return;
     }
-    if (loading) return <div style={{ padding: '100px', textAlign: 'center' }}>Загрузка...</div>;
-    if (!book) return <div style={{ padding: '100px', textAlign: 'center' }}>Книга не найдена</div>;
 
-    const paragraphs = book.content ? book.content.split('\n').filter(p => p.trim() !== '') : [];
-    const paragraphsPerPage = 10;
-    const totalPages = Math.ceil(paragraphs.length / paragraphsPerPage);
-    
-    const currentParagraphs = paragraphs.slice(
-        currentPage * paragraphsPerPage, 
-        (currentPage + 1) * paragraphsPerPage
-    );
-
-    const themes = {
-        light: { bg: '#ffffff', text: '#1e293b', ui: '#f8fafc', border: '#e2e8f0', accent: '#4f46e5' },
-        sepia: { bg: '#f4ecd8', text: '#5b4636', ui: '#efe3c4', border: '#dccfb0', accent: '#8c6d46' },
-        dark: { bg: '#121212', text: '#e2e8f0', ui: '#1e1e1e', border: '#334155', accent: '#6366f1' }
+    const pageData = pages[currentPage] || pages[0];
+    const progressPayload = {
+      page: currentPage,
+      totalPages: pages.length,
+      paragraphIndex: pageData.startIndex,
+      updatedAt: new Date().toISOString(),
     };
 
-    const cur = themes[theme];
-    const uiFont = '"Inter", "Segoe UI", Roboto, sans-serif';
+    localStorage.setItem(getProgressStorageKey(id), JSON.stringify(progressPayload));
+    localStorage.setItem(getLegacyPageStorageKey(id), String(currentPage));
+  }, [fontSize, theme, fontFamily, currentPage, id, pages, resumePrompt]);
 
-    const btnStyle = {
-        padding: '10px 18px',
-        cursor: 'pointer',
-        borderRadius: '8px',
-        border: `1px solid ${cur.border}`,
-        background: cur.ui,
-        color: cur.text,
-        fontSize: '14px',
-        fontWeight: '600',
-        fontFamily: uiFont,
-        transition: '0.2s'
+  useEffect(() => {
+    if (!pages.length || resumePrompt) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      const tagName = event.target?.tagName;
+      if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(tagName)) {
+        return;
+      }
+
+      if (event.key === 'ArrowRight') {
+        setCurrentPage((prev) => clamp(prev + 1, 0, pages.length - 1));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      if (event.key === 'ArrowLeft') {
+        setCurrentPage((prev) => clamp(prev - 1, 0, pages.length - 1));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     };
 
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pages, resumePrompt]);
+
+  const openPage = (pageIndex) => {
+    if (!pages.length) {
+      return;
+    }
+
+    const safeIndex = clamp(pageIndex, 0, pages.length - 1);
+    setCurrentPage(safeIndex);
+    setAnchorParagraphIndex(pages[safeIndex].startIndex);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleResumeReading = () => {
+    if (!resumePrompt) {
+      return;
+    }
+
+    setCurrentPage(resumePrompt.pageIndex);
+    setAnchorParagraphIndex(resumePrompt.paragraphIndex);
+    setResumePrompt(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleStartOver = () => {
+    localStorage.removeItem(getProgressStorageKey(id));
+    localStorage.setItem(getLegacyPageStorageKey(id), '0');
+    setSavedProgress(null);
+    setCurrentPage(0);
+    setAnchorParagraphIndex(0);
+    setResumePrompt(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  if (!token) {
     return (
-        <div style={{ backgroundColor: cur.bg, color: cur.text, minHeight: '100vh', transition: '0.3s', display: 'flex', flexDirection: 'column' }}>
-            <header style={{
-                position: 'fixed', top: 0, width: '100%', height: '70px',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '0 40px', backgroundColor: cur.bg, borderBottom: `1px solid ${cur.border}`,
-                zIndex: 2000, boxSizing: 'border-box'
-            }}>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                    <button onClick={() => navigate(`/catalog/${id}`)} style={{ ...btnStyle, background: cur.accent, color: 'white', border: 'none' }}>← О книге</button>
-                    <button onClick={() => navigate('/catalog')} style={{ ...btnStyle, background: 'transparent', border: `1px solid ${cur.accent}`, color: cur.accent }}>Библиотека</button>
-                </div>
-                
-                <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', background: cur.ui, borderRadius: '8px', border: `1px solid ${cur.border}`, overflow: 'hidden' }}>
-                        <button onClick={() => setFontSize(prev => Math.max(12, prev - 2))} style={{ ...btnStyle, border: 'none', borderRadius: 0 }}>A-</button>
-                        <span style={{ width: '45px', textAlign: 'center', fontWeight: 'bold' }}>{fontSize}</span>
-                        <button onClick={() => setFontSize(prev => Math.min(32, prev + 2))} style={{ ...btnStyle, border: 'none', borderRadius: 0 }}>A+</button>
-                    </div>
-                    <select value={theme} onChange={(e) => setTheme(e.target.value)} style={{ ...btnStyle, padding: '10px' }}>
-                        <option value="light">Светлая</option>
-                        <option value="sepia">Сепия</option>
-                        <option value="dark">Темная</option>
-                    </select>
-                    <select 
-                        value={fontFamily} onChange={(e) => setFontFamily(e.target.value)} style={{ ...btnStyle, padding: '10px' }}>
-                        <option value='"Georgia", serif'>С засечками</option>
-                        <option value='"Inter", sans-serif'>Без засечек</option>
-                        <option value='"Courier New", monospace'>Печатная машинка</option>
-                    </select>
-                </div>
-            </header>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          backgroundColor: '#f8fafc',
+          fontFamily: '"Inter", sans-serif',
+          textAlign: 'center',
+          padding: '20px',
+        }}
+      >
+        <div
+          style={{
+            background: 'white',
+            padding: '40px',
+            borderRadius: '16px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.05)',
+            maxWidth: '400px',
+          }}
+        >
+          <span style={{ fontSize: '50px', marginBottom: '20px', display: 'block' }}>🔒</span>
+          <h2 style={{ color: '#1e293b', marginBottom: '10px' }}>Доступ ограничен</h2>
+          <p style={{ color: '#64748b', marginBottom: '30px', lineHeight: '1.5' }}>
+            Чтобы перейти в режим чтения, сначала войдите в аккаунт.
+          </p>
 
-            <main style={{ 
-    maxWidth: '750px', 
-    margin: '0 auto', 
-    padding: '120px 25px 40px',
-    fontSize: `${fontSize}px`, 
-    lineHeight: '1.8', 
-    fontFamily: fontFamily, 
-    textAlign: 'justify',
-    flex: 1
-}}>
-    <h1 style={{ 
-        textAlign: 'center', 
-        marginBottom: '30px', 
-        fontSize: '2em', 
-        color: theme === 'dark' ? '#ffffff' : '#000000',
-        fontWeight: '900',
-        lineHeight: '1.2'
-    }}>
-        {book.title}
-    </h1>
-    
-    <div className="content">
-        {currentParagraphs.map((para, idx) => {
-            const isHeader = para.length < 30;
-            return (
-                <p key={idx} style={{ 
-                    textAlign: isHeader ? 'center' : 'justify', 
-                    fontWeight: isHeader ? 'bold' : 'normal',
-                    marginTop: isHeader ? '2em' : '1em',
-                    textIndent: isHeader ? '0' : '1.5em',
-                    color: cur.text
-                }}>
-                    {para}
-                </p>
-            );
-        })}
-    </div>
-</main>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <button
+              onClick={() => navigate('/login')}
+              style={{
+                padding: '14px',
+                borderRadius: '10px',
+                border: 'none',
+                background: '#4f46e5',
+                color: 'white',
+                fontWeight: '700',
+                fontSize: '16px',
+                cursor: 'pointer',
+                transition: '0.2s',
+              }}
+              onMouseOver={(event) => {
+                event.currentTarget.style.background = '#4338ca';
+              }}
+              onMouseOut={(event) => {
+                event.currentTarget.style.background = '#4f46e5';
+              }}
+            >
+              Войти в аккаунт
+            </button>
 
-            <footer style={{
-                position: 'fixed', bottom: 0, width: '100%', height: '60px',
-                display: 'flex', justifyContent: 'center', alignItems: 'center',
-                backgroundColor: cur.ui, borderTop: `1px solid ${cur.border}`,
-                gap: '20px', zIndex: 2000
-            }}>
-                <button 
-                    disabled={currentPage === 0}
-                    onClick={() => { setCurrentPage(p => p - 1); window.scrollTo(0,0); }}
-                    style={{ ...btnStyle, opacity: currentPage === 0 ? 0.5 : 1 }}
-                >
-                    Назад
-                </button>
-                
-                <span style={{ fontFamily: uiFont, fontSize: '14px', fontWeight: 'bold' }}>
-                    Страница {currentPage + 1} из {totalPages}
-                </span>
-
-                <button 
-                    disabled={currentPage === totalPages - 1}
-                    onClick={() => { setCurrentPage(p => p + 1); window.scrollTo(0,0); }}
-                    style={{ ...btnStyle, opacity: currentPage === totalPages - 1 ? 0.5 : 1 }}
-                >
-                    Вперед
-                </button>
-            </footer>
+            <button
+              onClick={() => navigate('/catalog')}
+              style={{
+                padding: '12px',
+                borderRadius: '10px',
+                border: '1px solid #e2e8f0',
+                background: 'transparent',
+                color: '#64748b',
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
+            >
+              Вернуться в каталог
+            </button>
+          </div>
         </div>
+      </div>
     );
+  }
+
+  if (loading) {
+    return <div style={{ padding: '100px', textAlign: 'center' }}>Загрузка...</div>;
+  }
+
+  if (!book) {
+    return <div style={{ padding: '100px', textAlign: 'center' }}>Книга не найдена</div>;
+  }
+
+  const themes = {
+    light: {
+      bg: 'linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)',
+      text: '#1e293b',
+      textSoft: '#64748b',
+      page: '#ffffff',
+      ui: 'rgba(255, 255, 255, 0.92)',
+      border: '#e2e8f0',
+      accent: '#4f46e5',
+      shadow: '0 24px 50px rgba(79, 70, 229, 0.12)',
+    },
+    sepia: {
+      bg: 'linear-gradient(180deg, #f8fafc 0%, #ede9fe 100%)',
+      text: '#312e81',
+      textSoft: '#6d28d9',
+      page: '#faf5ff',
+      ui: 'rgba(250, 245, 255, 0.93)',
+      border: '#ddd6fe',
+      accent: '#6366f1',
+      shadow: '0 24px 50px rgba(99, 102, 241, 0.14)',
+    },
+    dark: {
+      bg: 'linear-gradient(180deg, #0f172a 0%, #111827 100%)',
+      text: '#e2e8f0',
+      textSoft: '#94a3b8',
+      page: '#111827',
+      ui: 'rgba(15, 23, 42, 0.92)',
+      border: '#334155',
+      accent: '#818cf8',
+      shadow: '0 24px 50px rgba(0, 0, 0, 0.35)',
+    },
+  };
+
+  const currentTheme = themes[theme];
+  const uiFont = '"Inter", "Segoe UI", Roboto, sans-serif';
+  const isCompact = viewportWidth < 900;
+
+  const buttonStyle = {
+    padding: '10px 18px',
+    cursor: 'pointer',
+    borderRadius: '14px',
+    border: `1px solid ${currentTheme.border}`,
+    background: currentTheme.ui,
+    color: currentTheme.text,
+    fontSize: '14px',
+    fontWeight: '600',
+    fontFamily: uiFont,
+    transition: '0.2s',
+    backdropFilter: 'blur(10px)',
+  };
+
+  return (
+    <div
+      style={{
+        background: currentTheme.bg,
+        color: currentTheme.text,
+        minHeight: '100vh',
+        transition: 'background 0.3s, color 0.3s',
+      }}
+    >
+      <header
+        style={{
+          position: 'fixed',
+          top: 0,
+          width: '100%',
+          minHeight: '78px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '16px',
+          flexWrap: 'wrap',
+          padding: isCompact ? '12px 16px' : '16px 28px',
+          backgroundColor: currentTheme.ui,
+          borderBottom: `1px solid ${currentTheme.border}`,
+          zIndex: 2000,
+          boxSizing: 'border-box',
+          backdropFilter: 'blur(16px)',
+        }}
+      >
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => navigate(`/catalog/${id}`)}
+            style={{ ...buttonStyle, background: currentTheme.accent, color: '#fff', border: 'none' }}
+          >
+            ← О книге
+          </button>
+          <button
+            onClick={() => navigate('/catalog')}
+            style={{ ...buttonStyle, background: 'transparent', color: currentTheme.accent, border: `1px solid ${currentTheme.accent}` }}
+          >
+            Каталог
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', background: currentTheme.page, borderRadius: '16px', border: `1px solid ${currentTheme.border}`, overflow: 'hidden' }}>
+            <button onClick={() => setFontSize((prev) => Math.max(14, prev - 2))} style={{ ...buttonStyle, border: 'none', borderRadius: 0, background: 'transparent' }}>A-</button>
+            <span style={{ width: '48px', textAlign: 'center', fontWeight: '700', fontFamily: uiFont }}>{fontSize}</span>
+            <button onClick={() => setFontSize((prev) => Math.min(28, prev + 2))} style={{ ...buttonStyle, border: 'none', borderRadius: 0, background: 'transparent' }}>A+</button>
+          </div>
+
+          <select value={theme} onChange={(event) => setTheme(event.target.value)} style={{ ...buttonStyle, padding: '10px 14px' }}>
+            <option value="light">Светлая</option>
+            <option value="sepia">Сепия</option>
+            <option value="dark">Темная</option>
+          </select>
+
+          <select value={fontFamily} onChange={(event) => setFontFamily(event.target.value)} style={{ ...buttonStyle, padding: '10px 14px' }}>
+            <option value='"Georgia", serif'>Классический шрифт</option>
+            <option value='"Inter", sans-serif'>Современный шрифт</option>
+            <option value='"Merriweather", serif'>Литературный шрифт</option>
+          </select>
+        </div>
+      </header>
+
+      <main
+        style={{
+          maxWidth: '980px',
+          margin: '0 auto',
+          padding: isCompact ? '120px 16px 120px' : '132px 24px 120px',
+        }}
+      >
+        <section
+          style={{
+            background: currentTheme.page,
+            border: `1px solid ${currentTheme.border}`,
+            borderRadius: '32px',
+            boxShadow: currentTheme.shadow,
+            padding: isCompact ? '28px 18px 34px' : '42px 48px 46px',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: '160px',
+              height: '160px',
+              background: `radial-gradient(circle, ${currentTheme.accent}22 0%, transparent 68%)`,
+              pointerEvents: 'none',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '-20px',
+              left: '-10px',
+              width: '220px',
+              height: '220px',
+              background: `radial-gradient(circle, ${currentTheme.accent}12 0%, transparent 72%)`,
+              pointerEvents: 'none',
+            }}
+          />
+
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '22px' }}>
+              <div>
+                <span style={{ display: 'inline-flex', padding: '6px 12px', borderRadius: '999px', background: `${currentTheme.accent}16`, color: currentTheme.accent, fontFamily: uiFont, fontSize: '13px', fontWeight: 700, letterSpacing: '0.03em' }}>
+                  Режим чтения
+                </span>
+                <h1 style={{ margin: '14px 0 8px', fontSize: isCompact ? '2rem' : '2.6rem', lineHeight: 1.12, color: currentTheme.text }}>
+                  {book.title}
+                </h1>
+                <p style={{ margin: 0, color: currentTheme.textSoft, fontFamily: uiFont, fontSize: '1rem' }}>
+                  {book.author}
+                </p>
+              </div>
+
+              <div style={{ minWidth: isCompact ? '100%' : '220px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: currentTheme.textSoft, fontFamily: uiFont, fontSize: '14px' }}>
+                  <span>Прогресс</span>
+                  <span>{progressPercent}%</span>
+                </div>
+              <div style={{ width: '100%', height: '10px', borderRadius: '999px', background: `${currentTheme.accent}18`, overflow: 'hidden' }}>
+                <div style={{ width: `${progressPercent}%`, height: '100%', background: currentTheme.accent, transition: 'width 0.3s ease' }} />
+              </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '26px', fontFamily: uiFont, color: currentTheme.textSoft, fontSize: '14px' }}>
+              <span>Страница {totalPages ? currentPage + 1 : 0} из {totalPages || 0}</span>
+              <span>Стрелки ← и → тоже листают страницы</span>
+            </div>
+
+            <article
+              style={{
+                fontSize: `${fontSize}px`,
+                lineHeight: 1.95,
+                fontFamily,
+                textAlign: 'justify',
+                color: currentTheme.text,
+                maxWidth: '760px',
+                margin: '0 auto',
+                minHeight: isCompact ? '52vh' : '60vh',
+              }}
+            >
+              {currentPageData.paragraphs.map((paragraph, index) => {
+                const isFirstTextParagraph = !paragraph.isHeading
+                  && currentPageData.paragraphs
+                    .slice(0, index)
+                    .every((pageParagraph) => pageParagraph.isHeading);
+
+                if (paragraph.isHeading) {
+                  return (
+                    <h2
+                      key={paragraph.id}
+                      style={{
+                        textAlign: 'center',
+                        fontFamily: '"Inter", sans-serif',
+                        fontSize: '1.15em',
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        margin: index === 0 ? '0 0 1.8em' : '2.4em 0 1.4em',
+                        color: currentTheme.accent,
+                      }}
+                    >
+                      {paragraph.text}
+                    </h2>
+                  );
+                }
+
+                return (
+                  <p
+                    key={paragraph.id}
+                    style={{
+                      margin: index === 0 ? 0 : '1.25em 0 0',
+                      textIndent: isFirstTextParagraph ? 0 : '1.65em',
+                      color: currentTheme.text,
+                    }}
+                  >
+                    {isFirstTextParagraph
+                      ? renderDropCapParagraph(paragraph.text, currentTheme.accent)
+                      : paragraph.text}
+                  </p>
+                );
+              })}
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <footer
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          width: '100%',
+          minHeight: '76px',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: currentTheme.ui,
+          borderTop: `1px solid ${currentTheme.border}`,
+          padding: '12px 16px',
+          backdropFilter: 'blur(16px)',
+          zIndex: 2000,
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button
+            disabled={currentPage === 0}
+            onClick={() => openPage(currentPage - 1)}
+            style={{ ...buttonStyle, opacity: currentPage === 0 ? 0.45 : 1 }}
+          >
+            Назад
+          </button>
+
+          <div
+            style={{
+              minWidth: '150px',
+              padding: '10px 18px',
+              borderRadius: '16px',
+              background: currentTheme.page,
+              border: `1px solid ${currentTheme.border}`,
+              textAlign: 'center',
+              fontFamily: uiFont,
+              fontWeight: 700,
+              color: currentTheme.text,
+            }}
+          >
+            Страница {totalPages ? currentPage + 1 : 0} / {totalPages || 0}
+          </div>
+
+          <button
+            disabled={!totalPages || currentPage === totalPages - 1}
+            onClick={() => openPage(currentPage + 1)}
+            style={{ ...buttonStyle, opacity: !totalPages || currentPage === totalPages - 1 ? 0.45 : 1 }}
+          >
+            Вперёд
+          </button>
+        </div>
+      </footer>
+
+      {resumePrompt && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.46)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            zIndex: 4000,
+          }}
+        >
+          <div
+            style={{
+              maxWidth: '420px',
+              width: '100%',
+              background: currentTheme.page,
+              color: currentTheme.text,
+              borderRadius: '24px',
+              padding: '28px',
+              border: `1px solid ${currentTheme.border}`,
+              boxShadow: currentTheme.shadow,
+            }}
+          >
+            <div style={{ fontFamily: uiFont, color: currentTheme.accent, fontWeight: 800, marginBottom: '12px' }}>
+              Продолжить чтение?
+            </div>
+            <h3 style={{ margin: '0 0 12px', fontSize: '1.5rem' }}>
+              Вы остановились на странице {resumePrompt.pageIndex + 1}
+            </h3>
+            <p style={{ margin: '0 0 22px', color: currentTheme.textSoft, lineHeight: 1.6 }}>
+              Можем открыть книгу с сохранённого места или начать чтение сначала.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <button
+                onClick={handleResumeReading}
+                style={{
+                  ...buttonStyle,
+                  background: currentTheme.accent,
+                  color: '#fff',
+                  border: 'none',
+                  flex: 1,
+                  minWidth: '150px',
+                }}
+              >
+                Продолжить
+              </button>
+              <button
+                onClick={handleStartOver}
+                style={{
+                  ...buttonStyle,
+                  flex: 1,
+                  minWidth: '150px',
+                }}
+              >
+                Начать сначала
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
+
 
 export default Reader;

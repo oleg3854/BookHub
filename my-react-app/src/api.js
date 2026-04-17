@@ -1,7 +1,43 @@
 import axios from 'axios';
 
+const rawApiUrl = import.meta.env.VITE_API_URL || '/api/';
+export const API_BASE_URL = rawApiUrl.endsWith('/') ? rawApiUrl : `${rawApiUrl}/`;
+
+export const clearStoredAuth = () => {
+    localStorage.removeItem('access');
+    localStorage.removeItem('refresh');
+    localStorage.removeItem('username');
+};
+
+export const extractErrorMessage = (error, fallbackMessage = 'Что-то пошло не так.') => {
+    const data = error?.response?.data;
+
+    if (!data) {
+        return fallbackMessage;
+    }
+
+    if (typeof data === 'string') {
+        return data;
+    }
+
+    if (typeof data.error === 'string') {
+        return data.error;
+    }
+
+    if (typeof data.message === 'string') {
+        return data.message;
+    }
+
+    const firstValue = Object.values(data).flat().find(Boolean);
+    return typeof firstValue === 'string' ? firstValue : fallbackMessage;
+};
+
+export const publicApi = axios.create({
+    baseURL: API_BASE_URL,
+});
+
 const api = axios.create({
-    baseURL: 'http://127.0.0.1:8000/api/',
+    baseURL: API_BASE_URL,
 });
 
 api.interceptors.request.use(
@@ -12,39 +48,40 @@ api.interceptors.request.use(
         }
         return config;
     },
-    (error) => Promise.reject(error)
+    (error) => Promise.reject(error),
 );
 
 api.interceptors.response.use(
     (response) => response,
     async (error) => {
         const originalRequest = error.config;
+        const refreshToken = localStorage.getItem('refresh');
 
-        if (error.response.status === 401 && !originalRequest._retry) {
+        if (!error.response || !originalRequest) {
+            return Promise.reject(error);
+        }
+
+        if (error.response.status === 401 && !originalRequest._retry && refreshToken) {
             originalRequest._retry = true;
 
             try {
-                const refreshToken = localStorage.getItem('refresh');
-                
-                const response = await axios.post('http://127.0.0.1:8000/api/token/refresh/', {
-                    refresh: refreshToken
+                const response = await publicApi.post('token/refresh/', {
+                    refresh: refreshToken,
                 });
 
                 localStorage.setItem('access', response.data.access);
-
                 originalRequest.headers.Authorization = `Bearer ${response.data.access}`;
+
                 return api(originalRequest);
-                
             } catch (refreshError) {
-                console.error("Сессия истекла, нужно заново войти в систему");
-                localStorage.removeItem('access');
-                localStorage.removeItem('refresh');
+                clearStoredAuth();
                 window.location.href = '/login';
                 return Promise.reject(refreshError);
             }
         }
+
         return Promise.reject(error);
-    }
+    },
 );
 
 export default api;

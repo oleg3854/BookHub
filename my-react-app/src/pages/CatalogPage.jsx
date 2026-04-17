@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+
+import api from '../api';
 import { useFavorites } from '../context/FavoritesContext';
 import BookCard from '../components/BookCard';
 
@@ -24,7 +25,7 @@ const Catalog = ({ isAuth }) => {
   const { favorites } = useFavorites();
 
   useEffect(() => {
-    axios.get('http://127.0.0.1:8000/api/books/')
+    api.get('books/')
       .then(res => {
         setBooks(res.data);
         setFilteredBooks(res.data);

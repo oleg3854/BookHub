@@ -38,11 +38,27 @@ function BookCard({ id, title, author, genre, image, isAuth, average_rating }) {
     }}
     >
       <div style={{ position: 'relative', width: '100%', height: '360px' }}>
-        <img 
-          src={image} 
-          alt={title} 
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-        />
+        {image ? (
+          <img
+            src={image}
+            alt={title}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'grid',
+              placeItems: 'center',
+              background: 'linear-gradient(135deg, #e2e8f0, #f8fafc)',
+              color: '#64748b',
+              fontWeight: '700',
+            }}
+          >
+            Нет обложки
+          </div>
+        )}
         
         <div style={{
           position: 'absolute', top: '15px', left: '15px',
