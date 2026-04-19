@@ -647,6 +647,15 @@ body {
     transform: translateX(0);
   }
 
+  .catalog-sidebar-header {
+    justify-content: flex-end;
+    margin-bottom: 8px;
+  }
+
+  .catalog-sidebar .sidebar-brand {
+    display: none;
+  }
+
   .catalog-sidebar .side-menu {
     flex-direction: column;
     flex-wrap: nowrap;
