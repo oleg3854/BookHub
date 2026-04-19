@@ -6,7 +6,7 @@ import { useFavorites } from '../context/FavoritesContext';
 import BookCard from '../components/BookCard';
 
 const BookSkeleton = () => (
-  <div className="skeleton-card" style={{ width: '280px', height: '480px', background: '#f8fafc', borderRadius: '24px', padding: '20px' }}>
+  <div className="skeleton-card" style={{ background: '#f8fafc', borderRadius: '24px', padding: '20px' }}>
     <div className="skeleton-image" style={{ height: '360px', background: '#e2e8f0', borderRadius: '18px' }}></div>
     <div style={{ height: '20px', background: '#e2e8f0', marginTop: '15px', width: '80%', borderRadius: '4px' }}></div>
     <div style={{ height: '15px', background: '#e2e8f0', marginTop: '10px', width: '60%', borderRadius: '4px' }}></div>
@@ -21,8 +21,30 @@ const Catalog = ({ isAuth }) => {
   const [selectedGenre, setSelectedGenre] = useState('Все');
   const [selectedRating, setSelectedRating] = useState(0);
   const [showFavorites, setShowFavorites] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const { favorites } = useFavorites();
+
+  const closeFiltersOnPhone = () => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 640) {
+      setFiltersOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!filtersOpen) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setFiltersOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [filtersOpen]);
 
   useEffect(() => {
     api.get('books/')
@@ -68,23 +90,48 @@ const Catalog = ({ isAuth }) => {
   }, [showFavorites, favorites, filteredBooks, isAuth]);
 
   return (
-    <div className="layout">
-      <aside className="sidebar">
-        <div className="sidebar-brand">BookHub</div>
+    <div className="layout catalog-layout">
+      {filtersOpen && (
+        <button
+          type="button"
+          className="catalog-sidebar-overlay"
+          onClick={() => setFiltersOpen(false)}
+          aria-label="Закрыть фильтры"
+        />
+      )}
+
+      <aside className={`sidebar catalog-sidebar ${filtersOpen ? 'catalog-sidebar--open' : ''}`}>
+        <div className="catalog-sidebar-header">
+          <div className="sidebar-brand">BookHub</div>
+          <button
+            type="button"
+            className="sidebar-close"
+            onClick={() => setFiltersOpen(false)}
+            aria-label="Закрыть фильтры"
+          >
+            ×
+          </button>
+        </div>
         
         <div className="filter-group">
           <label>Моя библиотека</label>
           <div className="side-menu">
             <button 
               className={`menu-item ${!showFavorites ? 'active' : ''}`}
-              onClick={() => setShowFavorites(false)}
+              onClick={() => {
+                setShowFavorites(false);
+                closeFiltersOnPhone();
+              }}
             >
               Весь каталог
             </button>
             {isAuth && (
               <button 
                 className={`menu-item ${showFavorites ? 'active' : ''}`}
-                onClick={() => setShowFavorites(true)}
+                onClick={() => {
+                  setShowFavorites(true);
+                  closeFiltersOnPhone();
+                }}
               >
                 Избранное ({favorites.length})
               </button>
@@ -98,6 +145,7 @@ const Catalog = ({ isAuth }) => {
             type="text" 
             placeholder="Название или автор" 
             className="side-input"
+            value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
@@ -109,7 +157,10 @@ const Catalog = ({ isAuth }) => {
               <button 
                 key={genre}
                 className={`menu-item ${selectedGenre === genre ? 'active' : ''}`}
-                onClick={() => setSelectedGenre(genre)}
+                onClick={() => {
+                  setSelectedGenre(genre);
+                  closeFiltersOnPhone();
+                }}
               >
                 {genre}
               </button>
@@ -123,7 +174,10 @@ const Catalog = ({ isAuth }) => {
             {[1, 2, 3, 4, 5].map((star) => (
               <span 
                 key={star}
-                onClick={() => setSelectedRating(selectedRating === star ? 0 : star)}
+                onClick={() => {
+                  setSelectedRating(selectedRating === star ? 0 : star);
+                  closeFiltersOnPhone();
+                }}
                 style={{ 
                   cursor: 'pointer', 
                   fontSize: '1.5rem', 
@@ -141,10 +195,20 @@ const Catalog = ({ isAuth }) => {
       <main className="main-content">
         <header className="content-header">
           <h1>{showFavorites ? 'Избранные книги' : 'Каталог книг'}</h1>
-          <div className="count-badge">Найдено: {displayBooks.length}</div>
+          <div className="catalog-actions">
+            <button
+              type="button"
+              className="mobile-filters-trigger"
+              onClick={() => setFiltersOpen(true)}
+            >
+              <span className="mobile-filters-trigger__icon">☰</span>
+              Фильтры
+            </button>
+            <div className="count-badge">Найдено: {displayBooks.length}</div>
+          </div>
         </header>
 
-        <div className="book-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '25px', padding: '20px' }}>
+        <div className="book-grid catalog-grid">
           {loading ? (
             [...Array(8)].map((_, i) => <BookSkeleton key={i} />)
           ) : displayBooks.length > 0 ? (
@@ -162,7 +226,7 @@ const Catalog = ({ isAuth }) => {
               </Link>
             ))
           ) : (
-            <div className="no-results" style={{ width: '100%', textAlign: 'center', marginTop: '50px' }}>
+            <div className="no-results" style={{ width: '100%', textAlign: 'center', marginTop: '24px' }}>
               <h3>{showFavorites ? "В избранном пока пусто 💔" : "Ничего не найдено 🔍"}</h3>
               <p style={{ color: '#64748b' }}>Попробуйте изменить параметры фильтрации</p>
             </div>

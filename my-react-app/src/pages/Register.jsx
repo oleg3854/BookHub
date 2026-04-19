@@ -120,8 +120,8 @@ const Register = () => {
           </button>
         </form>
 
-        <p className="auth-footer">
-          Уже зарегистрированы? <Link to="/login" className="auth-link" style={{ color: 'var(--primary)', fontWeight: 'bold', textDecoration: 'none' }}>Войти</Link>
+        <p className="auth-footer" style={{ textAlign: 'center', marginTop: '24px', fontSize: '0.9rem', color: '#64748b' }}>
+          Уже зарегистрированы? <Link to="/login" className="auth-link" style={{ color: '#4f46e5', fontWeight: '700', textDecoration: 'none' }}>Войти</Link>
         </p>
       </div>
     </div>

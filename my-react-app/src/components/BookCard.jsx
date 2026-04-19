@@ -21,12 +21,13 @@ function BookCard({ id, title, author, genre, image, isAuth, average_rating }) {
       boxShadow: '0 8px 30px rgba(0,0,0,0.05)',
       transition: 'all 0.3s ease',
       cursor: 'pointer',
-      width: '280px', 
+      width: '100%',
       display: 'flex',
       flexDirection: 'column',
       border: '1px solid #f1f5f9',
       position: 'relative',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      height: '100%',
     }}
     onMouseEnter={(e) => {
       e.currentTarget.style.transform = 'translateY(-10px)';
@@ -37,7 +38,7 @@ function BookCard({ id, title, author, genre, image, isAuth, average_rating }) {
       e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.05)';
     }}
     >
-      <div style={{ position: 'relative', width: '100%', height: '360px' }}>
+      <div style={{ position: 'relative', width: '100%', aspectRatio: '3 / 4' }}>
         {image ? (
           <img
             src={image}
@@ -95,7 +96,7 @@ function BookCard({ id, title, author, genre, image, isAuth, average_rating }) {
         )}
       </div>
 
-      <div style={{ padding: '20px' }}>
+      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
         <h3 style={{ 
           margin: '0 0 6px 0', fontSize: '1.1rem', fontWeight: '800', color: '#1e293b',
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
@@ -107,7 +108,7 @@ function BookCard({ id, title, author, genre, image, isAuth, average_rating }) {
           {author}
         </p>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: 'auto' }}>
           {[1, 2, 3, 4, 5].map((star) => (
             <span key={star} style={{ 
               color: star <= Math.round(numRating) ? '#fbbf24' : '#e2e8f0', 

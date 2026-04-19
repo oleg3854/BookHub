@@ -27,7 +27,7 @@ const ForgotPassword = () => {
     return (
         <div style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center',
-            justifyContent: 'center', height: '100vh', background: '#f8fafc',
+            justifyContent: 'center', minHeight: 'calc(100vh - 70px)', background: '#f8fafc', padding: '20px',
         }}>
             <div style={{
                 background: 'white', padding: '40px', borderRadius: '16px',

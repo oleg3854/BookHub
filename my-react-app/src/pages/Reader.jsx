@@ -201,6 +201,7 @@ const Reader = () => {
   const [savedProgress, setSavedProgress] = useState(() => loadSavedProgress(id));
   const [resumePrompt, setResumePrompt] = useState(null);
   const [resumeChecked, setResumeChecked] = useState(false);
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(
     typeof window === 'undefined' ? 1280 : window.innerWidth,
   );
@@ -213,6 +214,9 @@ const Reader = () => {
     Number.parseInt(localStorage.getItem('reader-font-size'), 10) || 18,
   );
   const [theme, setTheme] = useState(localStorage.getItem('reader-theme') || 'light');
+  const isCompact = viewportWidth < 900;
+  const isMobile = viewportWidth < 640;
+  const showMobileControls = isMobile && mobileControlsOpen;
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
@@ -228,6 +232,7 @@ const Reader = () => {
     setSavedProgress(loadSavedProgress(id));
     setResumePrompt(null);
     setResumeChecked(false);
+    setMobileControlsOpen(false);
   }, [id]);
 
   useEffect(() => {
@@ -500,7 +505,6 @@ const Reader = () => {
 
   const currentTheme = themes[theme];
   const uiFont = '"Inter", "Segoe UI", Roboto, sans-serif';
-  const isCompact = viewportWidth < 900;
 
   const buttonStyle = {
     padding: '10px 18px',
@@ -533,10 +537,10 @@ const Reader = () => {
           minHeight: '78px',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '16px',
+          alignItems: isMobile ? 'stretch' : 'center',
+          gap: isMobile ? '12px' : '16px',
           flexWrap: 'wrap',
-          padding: isCompact ? '12px 16px' : '16px 28px',
+          padding: isMobile ? '12px' : isCompact ? '12px 16px' : '16px 28px',
           backgroundColor: currentTheme.ui,
           borderBottom: `1px solid ${currentTheme.border}`,
           zIndex: 2000,
@@ -544,56 +548,114 @@ const Reader = () => {
           backdropFilter: 'blur(16px)',
         }}
       >
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
           <button
             onClick={() => navigate(`/catalog/${id}`)}
-            style={{ ...buttonStyle, background: currentTheme.accent, color: '#fff', border: 'none' }}
+            style={{ ...buttonStyle, background: currentTheme.accent, color: '#fff', border: 'none', flex: isMobile ? '1 1 140px' : undefined }}
           >
             ← О книге
           </button>
           <button
             onClick={() => navigate('/catalog')}
-            style={{ ...buttonStyle, background: 'transparent', color: currentTheme.accent, border: `1px solid ${currentTheme.accent}` }}
+            style={{ ...buttonStyle, background: 'transparent', color: currentTheme.accent, border: `1px solid ${currentTheme.accent}`, flex: isMobile ? '1 1 140px' : undefined }}
           >
             Каталог
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', background: currentTheme.page, borderRadius: '16px', border: `1px solid ${currentTheme.border}`, overflow: 'hidden' }}>
-            <button onClick={() => setFontSize((prev) => Math.max(14, prev - 2))} style={{ ...buttonStyle, border: 'none', borderRadius: 0, background: 'transparent' }}>A-</button>
-            <span style={{ width: '48px', textAlign: 'center', fontWeight: '700', fontFamily: uiFont }}>{fontSize}</span>
-            <button onClick={() => setFontSize((prev) => Math.min(28, prev + 2))} style={{ ...buttonStyle, border: 'none', borderRadius: 0, background: 'transparent' }}>A+</button>
+        {isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+            <button
+              onClick={() => setMobileControlsOpen((prev) => !prev)}
+              style={{
+                ...buttonStyle,
+                width: '100%',
+                justifyContent: 'space-between',
+                background: currentTheme.page,
+                border: `1px solid ${currentTheme.border}`,
+              }}
+            >
+              <span>Настройки чтения</span>
+              <span style={{ color: currentTheme.accent, fontWeight: 700 }}>
+                {showMobileControls ? 'Скрыть' : 'Показать'}
+              </span>
+            </button>
+
+            {showMobileControls && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '18px',
+                  background: currentTheme.page,
+                  border: `1px solid ${currentTheme.border}`,
+                  boxShadow: `0 10px 24px ${currentTheme.accent}14`,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', background: currentTheme.ui, borderRadius: '16px', border: `1px solid ${currentTheme.border}`, overflow: 'hidden', width: '100%', justifyContent: 'space-between' }}>
+                  <button onClick={() => setFontSize((prev) => Math.max(14, prev - 2))} style={{ ...buttonStyle, border: 'none', borderRadius: 0, background: 'transparent' }}>A-</button>
+                  <span style={{ width: '48px', textAlign: 'center', fontWeight: '700', fontFamily: uiFont }}>{fontSize}</span>
+                  <button onClick={() => setFontSize((prev) => Math.min(28, prev + 2))} style={{ ...buttonStyle, border: 'none', borderRadius: 0, background: 'transparent' }}>A+</button>
+                </div>
+
+                <select value={theme} onChange={(event) => setTheme(event.target.value)} style={{ ...buttonStyle, width: '100%', padding: '10px 14px', background: currentTheme.ui }}>
+                  <option value="light">Светлая</option>
+                  <option value="sepia">Сепия</option>
+                  <option value="dark">Темная</option>
+                </select>
+
+                <select value={fontFamily} onChange={(event) => setFontFamily(event.target.value)} style={{ ...buttonStyle, width: '100%', padding: '10px 14px', background: currentTheme.ui }}>
+                  <option value='"Georgia", serif'>Классический шрифт</option>
+                  <option value='"Inter", sans-serif'>Современный шрифт</option>
+                  <option value='"Merriweather", serif'>Литературный шрифт</option>
+                </select>
+              </div>
+            )}
           </div>
+        ) : (
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', width: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', background: currentTheme.page, borderRadius: '16px', border: `1px solid ${currentTheme.border}`, overflow: 'hidden' }}>
+              <button onClick={() => setFontSize((prev) => Math.max(14, prev - 2))} style={{ ...buttonStyle, border: 'none', borderRadius: 0, background: 'transparent' }}>A-</button>
+              <span style={{ width: '48px', textAlign: 'center', fontWeight: '700', fontFamily: uiFont }}>{fontSize}</span>
+              <button onClick={() => setFontSize((prev) => Math.min(28, prev + 2))} style={{ ...buttonStyle, border: 'none', borderRadius: 0, background: 'transparent' }}>A+</button>
+            </div>
 
-          <select value={theme} onChange={(event) => setTheme(event.target.value)} style={{ ...buttonStyle, padding: '10px 14px' }}>
-            <option value="light">Светлая</option>
-            <option value="sepia">Сепия</option>
-            <option value="dark">Темная</option>
-          </select>
+            <select value={theme} onChange={(event) => setTheme(event.target.value)} style={{ ...buttonStyle, padding: '10px 14px' }}>
+              <option value="light">Светлая</option>
+              <option value="sepia">Сепия</option>
+              <option value="dark">Темная</option>
+            </select>
 
-          <select value={fontFamily} onChange={(event) => setFontFamily(event.target.value)} style={{ ...buttonStyle, padding: '10px 14px' }}>
-            <option value='"Georgia", serif'>Классический шрифт</option>
-            <option value='"Inter", sans-serif'>Современный шрифт</option>
-            <option value='"Merriweather", serif'>Литературный шрифт</option>
-          </select>
-        </div>
+            <select value={fontFamily} onChange={(event) => setFontFamily(event.target.value)} style={{ ...buttonStyle, padding: '10px 14px' }}>
+              <option value='"Georgia", serif'>Классический шрифт</option>
+              <option value='"Inter", sans-serif'>Современный шрифт</option>
+              <option value='"Merriweather", serif'>Литературный шрифт</option>
+            </select>
+          </div>
+        )}
       </header>
 
       <main
         style={{
           maxWidth: '980px',
           margin: '0 auto',
-          padding: isCompact ? '120px 16px 120px' : '132px 24px 120px',
+          padding: isMobile
+            ? showMobileControls
+              ? '286px 12px 160px'
+              : '156px 12px 160px'
+            : isCompact ? '148px 16px 124px' : '132px 24px 120px',
         }}
       >
         <section
           style={{
             background: currentTheme.page,
             border: `1px solid ${currentTheme.border}`,
-            borderRadius: '32px',
+            borderRadius: isMobile ? '24px' : '32px',
             boxShadow: currentTheme.shadow,
-            padding: isCompact ? '28px 18px 34px' : '42px 48px 46px',
+            padding: isMobile ? '24px 16px 28px' : isCompact ? '28px 18px 34px' : '42px 48px 46px',
             position: 'relative',
             overflow: 'hidden',
           }}
@@ -648,19 +710,19 @@ const Reader = () => {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '26px', fontFamily: uiFont, color: currentTheme.textSoft, fontSize: '14px' }}>
               <span>Страница {totalPages ? currentPage + 1 : 0} из {totalPages || 0}</span>
-              <span>Стрелки ← и → тоже листают страницы</span>
+              {!isMobile && <span>Стрелки ← и → тоже листают страницы</span>}
             </div>
 
             <article
               style={{
                 fontSize: `${fontSize}px`,
-                lineHeight: 1.95,
+                lineHeight: isMobile ? 1.82 : 1.95,
                 fontFamily,
-                textAlign: 'justify',
+                textAlign: isMobile ? 'left' : 'justify',
                 color: currentTheme.text,
                 maxWidth: '760px',
                 margin: '0 auto',
-                minHeight: isCompact ? '52vh' : '60vh',
+                minHeight: isMobile ? '48vh' : isCompact ? '52vh' : '60vh',
               }}
             >
               {currentPageData.paragraphs.map((paragraph, index) => {
@@ -713,7 +775,7 @@ const Reader = () => {
           position: 'fixed',
           bottom: 0,
           width: '100%',
-          minHeight: '76px',
+          minHeight: isMobile ? '116px' : '76px',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
@@ -725,18 +787,18 @@ const Reader = () => {
           boxSizing: 'border-box',
         }}
       >
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', width: '100%', maxWidth: '760px' }}>
           <button
             disabled={currentPage === 0}
             onClick={() => openPage(currentPage - 1)}
-            style={{ ...buttonStyle, opacity: currentPage === 0 ? 0.45 : 1 }}
+            style={{ ...buttonStyle, opacity: currentPage === 0 ? 0.45 : 1, flex: isMobile ? '1 1 140px' : undefined }}
           >
             Назад
           </button>
 
           <div
             style={{
-              minWidth: '150px',
+              minWidth: isMobile ? '100%' : '150px',
               padding: '10px 18px',
               borderRadius: '16px',
               background: currentTheme.page,
@@ -745,6 +807,7 @@ const Reader = () => {
               fontFamily: uiFont,
               fontWeight: 700,
               color: currentTheme.text,
+              order: isMobile ? -1 : 0,
             }}
           >
             Страница {totalPages ? currentPage + 1 : 0} / {totalPages || 0}
@@ -753,7 +816,7 @@ const Reader = () => {
           <button
             disabled={!totalPages || currentPage === totalPages - 1}
             onClick={() => openPage(currentPage + 1)}
-            style={{ ...buttonStyle, opacity: !totalPages || currentPage === totalPages - 1 ? 0.45 : 1 }}
+            style={{ ...buttonStyle, opacity: !totalPages || currentPage === totalPages - 1 ? 0.45 : 1, flex: isMobile ? '1 1 140px' : undefined }}
           >
             Вперёд
           </button>

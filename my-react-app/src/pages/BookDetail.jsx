@@ -80,13 +80,13 @@ const BookDetail = ({ isAuth }) => {
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', display: 'flex', justifyContent: 'center', backgroundColor: '#fff' }}>
-      <div style={{ width: '100%', maxWidth: '1100px', padding: '40px' }}>
+      <div style={{ width: '100%', maxWidth: '1100px', padding: 'clamp(20px, 4vw, 40px)' }}>
         <button onClick={() => navigate(-1)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f1f5f9', border: 'none', color: '#475569', cursor: 'pointer', padding: '10px 18px', borderRadius: '12px', marginBottom: '30px' }}>
           ← Назад
         </button>
 
-        <div style={{ display: 'flex', gap: '50px', marginBottom: '60px', flexWrap: 'wrap' }}>
-          <div style={{ flex: '0 0 350px', position: 'relative' }}>
+        <div style={{ display: 'flex', gap: 'clamp(24px, 5vw, 50px)', marginBottom: '60px', flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 320px', maxWidth: '350px', width: '100%', position: 'relative' }}>
             {book.cover_image ? (
               <img src={book.cover_image} alt={book.title} style={{ width: '100%', borderRadius: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }} />
             ) : (
@@ -104,9 +104,9 @@ const BookDetail = ({ isAuth }) => {
             )}
           </div>
 
-          <div style={{ flex: '1', minWidth: '280px' }}>
-            <h1 style={{ fontSize: '3rem', fontWeight: '800', color: '#1e293b', marginBottom: '10px' }}>{book.title}</h1>
-            <p style={{ fontSize: '1.4rem', color: '#6366f1', fontWeight: '600', marginBottom: '25px' }}>{book.author}</p>
+          <div style={{ flex: '1 1 320px', minWidth: '280px' }}>
+            <h1 style={{ fontSize: 'clamp(2rem, 7vw, 3rem)', lineHeight: '1.08', fontWeight: '800', color: '#1e293b', marginBottom: '10px' }}>{book.title}</h1>
+            <p style={{ fontSize: 'clamp(1.1rem, 3vw, 1.4rem)', color: '#6366f1', fontWeight: '600', marginBottom: '25px' }}>{book.author}</p>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '35px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>⭐ {book.average_rating || 0}</span>
@@ -124,6 +124,7 @@ const BookDetail = ({ isAuth }) => {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 padding: '16px 32px',
                 backgroundColor: '#6366f1',
                 color: 'white',
@@ -133,6 +134,7 @@ const BookDetail = ({ isAuth }) => {
                 fontWeight: 'bold',
                 transition: 'transform 0.2s, box-shadow 0.2s',
                 boxShadow: '0 10px 20px rgba(99, 102, 241, 0.3)',
+                width: 'min(100%, 260px)',
               }}
               onMouseOver={(event) => {
                 event.currentTarget.style.transform = 'translateY(-2px)';
@@ -148,18 +150,18 @@ const BookDetail = ({ isAuth }) => {
 
         <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '40px 0' }} />
 
-        <section style={{ maxWidth: '800px' }}>
+        <section style={{ maxWidth: '800px', width: '100%' }}>
           <h2 style={{ fontSize: '1.8rem', marginBottom: '30px' }}>Отзывы ({reviews.length})</h2>
           {isAuth ? (
-            <div style={{ backgroundColor: '#f8fafc', padding: '30px', borderRadius: '24px', marginBottom: '50px' }}>
+            <div style={{ backgroundColor: '#f8fafc', padding: 'clamp(20px, 4vw, 30px)', borderRadius: '24px', marginBottom: '50px' }}>
               <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>Ваша оценка:</p>
               <div style={{ display: 'flex', gap: '5px', marginBottom: '20px' }}>
                 {[1, 2, 3, 4, 5].map((star) => (
                   <span key={star} onClick={() => setUserRating(star)} onMouseEnter={() => setHover(star)} onMouseLeave={() => setHover(0)} style={{ fontSize: '2rem', cursor: 'pointer', color: star <= (hover || userRating) ? '#fbbf24' : '#e2e8f0' }}>★</span>
                 ))}
               </div>
-              <textarea value={reviewText} onChange={(event) => setReviewText(event.target.value)} placeholder="Напишите ваш отзыв..." style={{ width: '100%', height: '120px', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
-              <button onClick={handleReviewSubmit} style={{ marginTop: '20px', padding: '14px 40px', backgroundColor: '#6366f1', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>
+              <textarea value={reviewText} onChange={(event) => setReviewText(event.target.value)} placeholder="Напишите ваш отзыв..." style={{ width: '100%', height: '120px', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+              <button onClick={handleReviewSubmit} style={{ marginTop: '20px', padding: '14px 40px', backgroundColor: '#6366f1', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', cursor: 'pointer', width: 'min(100%, 240px)' }}>
                 Опубликовать
               </button>
             </div>
