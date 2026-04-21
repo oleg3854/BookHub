@@ -39,6 +39,7 @@ const LibraryBookCard = ({ book, progress, variant, onRemoveFavorite }) => {
   const image = getBookImage(book);
   const targetPath = isProgressCard ? `/reader/${book.id}` : `/catalog/${book.id}`;
   const actionText = progress?.isFinished ? 'Перечитать' : isProgressCard ? 'Продолжить' : 'Открыть';
+  const rating = Number.parseFloat(book.average_rating) || 0;
 
   const handleFavoriteClick = (event) => {
     event.preventDefault();
@@ -93,6 +94,13 @@ const LibraryBookCard = ({ book, progress, variant, onRemoveFavorite }) => {
             </div>
           </div>
         )}
+
+        <div className="library-card-rating" aria-label={`Рейтинг ${rating.toFixed(1)} из 5`}>
+          {[1, 2, 3, 4, 5].map((star) => (
+            <span key={star} className={star <= Math.round(rating) ? 'is-active' : ''}>★</span>
+          ))}
+          <strong>{rating.toFixed(1)}</strong>
+        </div>
 
         <span className="library-card-action">{actionText}</span>
       </div>
@@ -284,14 +292,45 @@ const MyLibrary = () => {
   }
 
   return (
-    <div className="library-page">
-      <div className="library-shell">
+    <div className="layout library-layout">
+      <aside className="sidebar library-sidebar">
+        <div className="filter-group">
+          <label>Моя библиотека</label>
+          <div className="side-menu">
+            <Link to="/catalog" className="menu-item">
+              Весь каталог
+            </Link>
+            <button type="button" className="menu-item active">
+              Мои книги
+            </button>
+          </div>
+        </div>
+
+        <div className="filter-group">
+          <label>Разделы</label>
+          <div className="side-menu">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`menu-item ${activeTab === tab.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+                <span>{tabCounters[tab.id]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </aside>
+
+      <main className="main-content library-main-content">
+        <div className="library-shell">
         <header className="library-hero">
           <div>
             <p>BookHub</p>
             <h1>Мои книги</h1>
           </div>
-          <Link to="/catalog">Открыть каталог</Link>
         </header>
 
         <div className="library-stats">
@@ -307,20 +346,6 @@ const MyLibrary = () => {
             <span>{visibleFavoriteBooks.length}</span>
             <p>в избранном</p>
           </div>
-        </div>
-
-        <div className="library-tabs" role="tablist" aria-label="Разделы моей библиотеки">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={`library-tab ${activeTab === tab.id ? 'library-tab--active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.label}
-              <span>{tabCounters[tab.id]}</span>
-            </button>
-          ))}
         </div>
 
         {loading ? (
@@ -340,7 +365,8 @@ const MyLibrary = () => {
         ) : (
           <EmptyLibraryState activeTab={activeTab} />
         )}
-      </div>
+        </div>
+      </main>
 
       {pendingFavoriteRemovalItems.length > 0 && (
         <div className="library-removal-toasts" aria-live="polite">
@@ -351,7 +377,7 @@ const MyLibrary = () => {
               </div>
               <div className="library-removal-toast__content">
                 <div className="library-removal-toast__title">
-                  {status === 'deleting' ? 'Удаляем из избранного' : 'Книга удалена из избранного'}
+                  {status === 'deleting' ? 'Удаляем из избранного' : 'Книга будет удалена из избранного'}
                 </div>
                 <div className="library-removal-toast__book">{book.title}</div>
                 <div className="library-removal-toast__progress">
