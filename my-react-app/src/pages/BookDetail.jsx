@@ -88,7 +88,7 @@ const BookDetail = ({ isAuth }) => {
     <div style={{ width: '100%', minHeight: '100vh', display: 'flex', justifyContent: 'center', backgroundColor: '#fff' }}>
       <div style={{ width: '100%', maxWidth: '1100px', padding: 'clamp(20px, 4vw, 40px)' }}>
         <button onClick={() => navigate(-1)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f1f5f9', border: 'none', color: '#475569', cursor: 'pointer', padding: '10px 18px', borderRadius: '12px', marginBottom: '30px' }}>
-          ← Назад
+          Назад
         </button>
 
         <div style={{ display: 'flex', gap: 'clamp(24px, 5vw, 50px)', marginBottom: '60px', flexWrap: 'wrap' }}>
