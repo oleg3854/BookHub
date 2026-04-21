@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router-dom';
 
 import api, { clearStoredAuth } from './api';
 import './App.css';
@@ -8,11 +8,66 @@ import Catalog from './pages/CatalogPage';
 import ForgotPassword from './pages/ForgotPassword';
 import HomePage from './pages/HomePage';
 import Login from './pages/Login';
+import MyLibrary from './pages/MyLibrary';
 import Profile from './pages/Profile';
 import Reader from './pages/Reader';
 import Register from './pages/Register';
 import ResetPasswordConfirm from './pages/ResetPasswordConfirm';
 import { FavoritesProvider } from './context/FavoritesContext';
+
+const getDocumentTitle = (pathname) => {
+  if (pathname === '/') {
+    return 'Главная | BookHub';
+  }
+
+  if (pathname === '/catalog') {
+    return 'Каталог | BookHub';
+  }
+
+  if (pathname === '/my-library') {
+    return 'Мои книги | BookHub';
+  }
+
+  if (pathname === '/login') {
+    return 'Вход | BookHub';
+  }
+
+  if (pathname === '/register') {
+    return 'Регистрация | BookHub';
+  }
+
+  if (pathname === '/profile') {
+    return 'Профиль | BookHub';
+  }
+
+  if (pathname === '/forgot-password') {
+    return 'Восстановление пароля | BookHub';
+  }
+
+  if (pathname.startsWith('/reset-password/')) {
+    return 'Новый пароль | BookHub';
+  }
+
+  if (pathname.startsWith('/reader/')) {
+    return 'Чтение | BookHub';
+  }
+
+  if (pathname.startsWith('/catalog/')) {
+    return 'Книга | BookHub';
+  }
+
+  return 'BookHub';
+};
+
+const DocumentTitle = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    document.title = getDocumentTitle(pathname);
+  }, [pathname]);
+
+  return null;
+};
 
 
 function App() {
@@ -85,6 +140,7 @@ function App() {
   return (
     <FavoritesProvider>
       <BrowserRouter>
+        <DocumentTitle />
         <header className="app-header">
           <div className="app-brand-row">
             <Link to="/" className="app-brand" onClick={closeMobileMenu}>
@@ -112,6 +168,11 @@ function App() {
               <Link to="/catalog" className="app-nav-link" onClick={closeMobileMenu}>
                 Каталог
               </Link>
+              {isAuth && (
+                <Link to="/my-library" className="app-nav-link" onClick={closeMobileMenu}>
+                  Мои книги
+                </Link>
+              )}
             </div>
 
             {isAuth ? (
@@ -139,8 +200,9 @@ function App() {
 
         <main className="main-app-content">
           <Routes>
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<HomePage isAuth={isAuth} />} />
             <Route path="/catalog" element={<Catalog isAuth={isAuth} />} />
+            <Route path="/my-library" element={<MyLibrary />} />
             <Route path="/reader/:id" element={<Reader />} />
             <Route
               path="/catalog/:id"

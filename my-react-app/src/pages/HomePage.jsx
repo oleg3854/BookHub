@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const HomePage = () => {
+const HomePage = ({ isAuth }) => {
     const navigate = useNavigate();
 
     return (
@@ -26,7 +26,7 @@ const HomePage = () => {
                     fontWeight: '800',
                     color: '#1e293b',
                     marginBottom: '20px',
-                    letterSpacing: '-2px',
+                    letterSpacing: 0,
                     lineHeight: '1.1'
                 }}>
                     Твоя идеальная библиотека <br/>
@@ -65,8 +65,8 @@ const HomePage = () => {
                         Открыть каталог
                     </button>
                     
-                    <button 
-                        onClick={() => navigate('/register')}
+                    <button
+                        onClick={() => navigate(isAuth ? '/my-library' : '/register')}
                         style={{
                             padding: '16px 32px',
                             fontSize: '18px',
@@ -88,7 +88,7 @@ const HomePage = () => {
                             e.currentTarget.style.color = '#1e293b';
                         }}
                     >
-                        Присоединиться
+                        {isAuth ? 'Мои книги' : 'Присоединиться'}
                     </button>
                 </div>
             </div>

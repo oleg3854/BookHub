@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import api from '../api';
-import { useFavorites } from '../context/FavoritesContext';
 import BookCard from '../components/BookCard';
 
 const BookSkeleton = () => (
@@ -15,15 +14,11 @@ const BookSkeleton = () => (
 
 const Catalog = ({ isAuth }) => {
   const [books, setBooks] = useState([]);
-  const [filteredBooks, setFilteredBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('Все');
   const [selectedRating, setSelectedRating] = useState(0);
-  const [showFavorites, setShowFavorites] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-
-  const { favorites } = useFavorites();
 
   const closeFiltersOnPhone = () => {
     if (typeof window !== 'undefined' && window.innerWidth <= 640) {
@@ -50,7 +45,6 @@ const Catalog = ({ isAuth }) => {
     api.get('books/')
       .then(res => {
         setBooks(res.data);
-        setFilteredBooks(res.data);
         setTimeout(() => setLoading(false), 600); 
       })
       .catch(err => {
@@ -65,8 +59,8 @@ const Catalog = ({ isAuth }) => {
     return ['Все', ...uniqueGenres.sort()];
   }, [books]);
 
-  useEffect(() => {
-    const results = books.filter(book => {
+  const displayBooks = useMemo(() => (
+    books.filter(book => {
       const matchesSearch = 
         book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         book.author.toLowerCase().includes(searchTerm.toLowerCase());
@@ -77,17 +71,8 @@ const Catalog = ({ isAuth }) => {
       const matchesRating = selectedRating === 0 || bookRatingValue === selectedRating;
 
       return matchesSearch && matchesGenre && matchesRating;
-    });
-    
-    setFilteredBooks(results);
-  }, [searchTerm, selectedGenre, selectedRating, books]);
-
-  const displayBooks = useMemo(() => {
-    if (showFavorites && isAuth) {
-      return filteredBooks.filter(book => favorites.some(fav => fav.id === book.id));
-    }
-    return filteredBooks;
-  }, [showFavorites, favorites, filteredBooks, isAuth]);
+    })
+  ), [books, searchTerm, selectedGenre, selectedRating]);
 
   return (
     <div className="layout catalog-layout">
@@ -102,7 +87,6 @@ const Catalog = ({ isAuth }) => {
 
       <aside className={`sidebar catalog-sidebar ${filtersOpen ? 'catalog-sidebar--open' : ''}`}>
         <div className="catalog-sidebar-header">
-          <div className="sidebar-brand">BookHub</div>
           <button
             type="button"
             className="sidebar-close"
@@ -117,24 +101,21 @@ const Catalog = ({ isAuth }) => {
           <label>Моя библиотека</label>
           <div className="side-menu">
             <button 
-              className={`menu-item ${!showFavorites ? 'active' : ''}`}
+              className="menu-item active"
               onClick={() => {
-                setShowFavorites(false);
                 closeFiltersOnPhone();
               }}
             >
               Весь каталог
             </button>
             {isAuth && (
-              <button 
-                className={`menu-item ${showFavorites ? 'active' : ''}`}
-                onClick={() => {
-                  setShowFavorites(true);
-                  closeFiltersOnPhone();
-                }}
+              <Link
+                to="/my-library"
+                className="menu-item"
+                onClick={closeFiltersOnPhone}
               >
-                Избранное ({favorites.length})
-              </button>
+                Мои книги
+              </Link>
             )}
           </div>
         </div>
@@ -194,7 +175,7 @@ const Catalog = ({ isAuth }) => {
 
       <main className="main-content">
         <header className="content-header">
-          <h1>{showFavorites ? 'Избранные книги' : 'Каталог книг'}</h1>
+          <h1>Каталог книг</h1>
           <div className="catalog-actions">
             <button
               type="button"
@@ -227,7 +208,7 @@ const Catalog = ({ isAuth }) => {
             ))
           ) : (
             <div className="no-results" style={{ width: '100%', textAlign: 'center', marginTop: '24px' }}>
-              <h3>{showFavorites ? "В избранном пока пусто 💔" : "Ничего не найдено 🔍"}</h3>
+              <h3>Ничего не найдено 🔍</h3>
               <p style={{ color: '#64748b' }}>Попробуйте изменить параметры фильтрации</p>
             </div>
           )}

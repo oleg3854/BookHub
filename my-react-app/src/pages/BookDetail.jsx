@@ -33,6 +33,12 @@ const BookDetail = ({ isAuth }) => {
       });
   }, [id]);
 
+  useEffect(() => {
+    if (book?.title) {
+      document.title = `${book.title} | BookHub`;
+    }
+  }, [book?.title]);
+
   const handleReviewSubmit = async (event) => {
     event.preventDefault();
 
