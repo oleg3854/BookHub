@@ -377,7 +377,7 @@ const MyLibrary = () => {
               </div>
               <div className="library-removal-toast__content">
                 <div className="library-removal-toast__title">
-                  {status === 'deleting' ? 'Удаляем из избранного' : 'Книга будет удалена из избранного'}
+                  {status === 'deleting' ? 'Удаляем из избранного' : 'Книга удалена из избранного'}
                 </div>
                 <div className="library-removal-toast__book">{book.title}</div>
                 <div className="library-removal-toast__progress">
