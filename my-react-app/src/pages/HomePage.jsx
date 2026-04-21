@@ -6,7 +6,9 @@ const HomePage = ({ isAuth }) => {
 
     return (
         <div style={{
-            minHeight: 'calc(100vh - 70px)',
+            minHeight: '100dvh',
+            width: '100%',
+            marginTop: 'calc(-1 * var(--main-content-offset))',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -14,7 +16,8 @@ const HomePage = ({ isAuth }) => {
             background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
             fontFamily: '"Inter", sans-serif',
             overflow: 'hidden',
-            padding: '20px'
+            padding: 'calc(var(--main-content-offset) + 20px) 20px 20px',
+            boxSizing: 'border-box'
         }}>
             <div style={{
                 textAlign: 'center',

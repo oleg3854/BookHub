@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import api, { clearStoredAuth } from '../api';
@@ -11,6 +11,8 @@ const tabs = [
   { id: 'finished', label: 'Прочитано' },
   { id: 'favorites', label: 'Избранное' },
 ];
+
+const FAVORITE_REMOVAL_DELAY = 4500;
 
 const getBookImage = (book) => book.cover_image || book.image || '';
 
@@ -31,11 +33,18 @@ const formatProgressDate = (dateValue) => {
   }).format(date);
 };
 
-const LibraryBookCard = ({ book, progress, variant }) => {
+const LibraryBookCard = ({ book, progress, variant, onRemoveFavorite }) => {
   const isProgressCard = Boolean(progress);
+  const isFavoriteCard = variant === 'favorites';
   const image = getBookImage(book);
   const targetPath = isProgressCard ? `/reader/${book.id}` : `/catalog/${book.id}`;
   const actionText = progress?.isFinished ? 'Перечитать' : isProgressCard ? 'Продолжить' : 'Открыть';
+
+  const handleFavoriteClick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onRemoveFavorite(book);
+  };
 
   return (
     <Link to={targetPath} className="library-book-card">
@@ -45,10 +54,26 @@ const LibraryBookCard = ({ book, progress, variant }) => {
         ) : (
           <div className="library-book-cover-placeholder">BookHub</div>
         )}
+
+        {isFavoriteCard && (
+          <button
+            type="button"
+            className="library-favorite-button"
+            onClick={handleFavoriteClick}
+            aria-label={`Убрать из избранного: ${book.title}`}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
+        )}
       </div>
 
       <div className="library-book-info">
-        <div>
+        <div className="library-book-main">
           <div className="library-book-kicker">{book.genre || (variant === 'favorites' ? 'Избранное' : 'Книга')}</div>
           <h2>{book.title}</h2>
           <p>{book.author}</p>
@@ -98,7 +123,14 @@ const MyLibrary = () => {
   const [progressRecords, setProgressRecords] = useState(() => getStoredReadingProgress());
   const [activeTab, setActiveTab] = useState('reading');
   const [loading, setLoading] = useState(Boolean(token));
-  const { favorites } = useFavorites();
+  const [pendingFavoriteRemovals, setPendingFavoriteRemovals] = useState({});
+  const removalTimers = useRef(new Map());
+  const { favorites, toggleFavorite } = useFavorites();
+
+  useEffect(() => () => {
+    removalTimers.current.forEach((timerId) => clearTimeout(timerId));
+    removalTimers.current.clear();
+  }, []);
 
   useEffect(() => {
     const refreshProgress = () => {
@@ -176,7 +208,8 @@ const MyLibrary = () => {
 
   const readingBooks = progressBooks.filter(({ progress }) => !progress.isFinished);
   const finishedBooks = progressBooks.filter(({ progress }) => progress.isFinished);
-  const favoriteBooks = favorites.map((book) => ({ book, progress: null }));
+  const visibleFavoriteBooks = favorites.filter((book) => !pendingFavoriteRemovals[book.id]);
+  const favoriteBooks = visibleFavoriteBooks.map((book) => ({ book, progress: null }));
 
   const visibleBooks = {
     reading: readingBooks,
@@ -187,7 +220,52 @@ const MyLibrary = () => {
   const tabCounters = {
     reading: readingBooks.length,
     finished: finishedBooks.length,
-    favorites: favorites.length,
+    favorites: visibleFavoriteBooks.length,
+  };
+
+  const pendingFavoriteRemovalItems = Object.values(pendingFavoriteRemovals);
+
+  const dismissPendingRemoval = (bookId) => {
+    const timerId = removalTimers.current.get(bookId);
+    if (timerId) {
+      clearTimeout(timerId);
+      removalTimers.current.delete(bookId);
+    }
+
+    setPendingFavoriteRemovals((prev) => {
+      const next = { ...prev };
+      delete next[bookId];
+      return next;
+    });
+  };
+
+  const scheduleFavoriteRemoval = (book) => {
+    if (pendingFavoriteRemovals[book.id]) {
+      return;
+    }
+
+    setPendingFavoriteRemovals((prev) => ({
+      ...prev,
+      [book.id]: { book, status: 'pending' },
+    }));
+
+    const timerId = window.setTimeout(async () => {
+      removalTimers.current.delete(book.id);
+      setPendingFavoriteRemovals((prev) => ({
+        ...prev,
+        [book.id]: { book, status: 'deleting' },
+      }));
+
+      await toggleFavorite(book);
+
+      setPendingFavoriteRemovals((prev) => {
+        const next = { ...prev };
+        delete next[book.id];
+        return next;
+      });
+    }, FAVORITE_REMOVAL_DELAY);
+
+    removalTimers.current.set(book.id, timerId);
   };
 
   if (!token) {
@@ -226,7 +304,7 @@ const MyLibrary = () => {
             <p>прочитано</p>
           </div>
           <div>
-            <span>{favorites.length}</span>
+            <span>{visibleFavoriteBooks.length}</span>
             <p>в избранном</p>
           </div>
         </div>
@@ -255,6 +333,7 @@ const MyLibrary = () => {
                 book={book}
                 progress={progress}
                 variant={activeTab}
+                onRemoveFavorite={scheduleFavoriteRemoval}
               />
             ))}
           </div>
@@ -262,6 +341,35 @@ const MyLibrary = () => {
           <EmptyLibraryState activeTab={activeTab} />
         )}
       </div>
+
+      {pendingFavoriteRemovalItems.length > 0 && (
+        <div className="library-removal-toasts" aria-live="polite">
+          {pendingFavoriteRemovalItems.map(({ book, status }) => (
+            <div className="library-removal-toast" key={book.id}>
+              <div className="library-removal-toast__icon" aria-hidden="true">
+                <span />
+              </div>
+              <div className="library-removal-toast__content">
+                <div className="library-removal-toast__title">
+                  {status === 'deleting' ? 'Удаляем из избранного' : 'Книга удалена из избранного'}
+                </div>
+                <div className="library-removal-toast__book">{book.title}</div>
+                <div className="library-removal-toast__progress">
+                  <span className={status === 'deleting' ? 'is-deleting' : ''} />
+                </div>
+              </div>
+              <button
+                type="button"
+                className="library-removal-toast__undo"
+                onClick={() => dismissPendingRemoval(book.id)}
+                disabled={status === 'deleting'}
+              >
+                Отменить
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -92,17 +92,17 @@ const BookDetail = ({ isAuth }) => {
         </button>
 
         <div style={{ display: 'flex', gap: 'clamp(24px, 5vw, 50px)', marginBottom: '60px', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 320px', maxWidth: '350px', width: '100%', position: 'relative' }}>
+          <div className="book-detail-cover-frame">
             {book.cover_image ? (
-              <img src={book.cover_image} alt={book.title} style={{ width: '100%', borderRadius: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }} />
+              <img src={book.cover_image} alt={book.title} className="book-detail-cover-image" />
             ) : (
-              <div style={{ width: '100%', minHeight: '480px', borderRadius: '24px', background: 'linear-gradient(135deg, #e2e8f0, #f8fafc)', display: 'grid', placeItems: 'center', color: '#64748b', fontWeight: '700' }}>
+              <div className="book-detail-cover-placeholder">
                 Обложка отсутствует
               </div>
             )}
 
             {isAuth && (
-              <button onClick={() => toggleFavorite(book)} style={{ position: 'absolute', top: '20px', right: '20px', width: '48px', height: '48px', borderRadius: '50%', backgroundColor: isFavorite ? '#6366f1' : 'white', border: 'none', cursor: 'pointer', boxShadow: '0 8px 15px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <button onClick={() => toggleFavorite(book)} className={`book-detail-favorite-button ${isFavorite ? 'book-detail-favorite-button--active' : ''}`}>
                 <svg width="22" height="22" viewBox="0 0 24 24">
                   <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill={isFavorite ? 'white' : 'none'} stroke={isFavorite ? 'white' : '#1e293b'} strokeWidth="2.5" />
                 </svg>
