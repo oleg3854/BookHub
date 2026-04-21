@@ -536,7 +536,7 @@ const Reader = () => {
             onClick={() => navigate(`/catalog/${id}`)}
             style={{ ...buttonStyle, background: currentTheme.accent, color: '#fff', border: 'none', flex: isMobile ? '1 1 140px' : undefined }}
           >
-            ← О книге
+            О книге
           </button>
           <button
             onClick={() => navigate('/catalog')}
