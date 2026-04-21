@@ -38,12 +38,11 @@ function BookCard({ id, title, author, genre, image, isAuth, average_rating }) {
       e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.05)';
     }}
     >
-      <div style={{ position: 'relative', width: '100%', aspectRatio: '3 / 4' }}>
+      <div className="book-card-cover">
         {image ? (
           <img
             src={image}
             alt={title}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : (
           <div

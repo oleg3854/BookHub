@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import api from '../api';
+import { clearBookProgress, loadSavedProgress, saveBookProgress } from '../readingProgress';
 
 
 const HEADER_PATTERNS = [
@@ -17,31 +18,6 @@ const HEADER_PATTERNS = [
 
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-
-const getProgressStorageKey = (bookId) => `book-progress-${bookId}`;
-const getLegacyPageStorageKey = (bookId) => `book-page-${bookId}`;
-
-
-const loadSavedProgress = (bookId) => {
-  const progressKey = getProgressStorageKey(bookId);
-  const legacyKey = getLegacyPageStorageKey(bookId);
-
-  try {
-    const savedProgress = localStorage.getItem(progressKey);
-    if (savedProgress) {
-      return JSON.parse(savedProgress);
-    }
-  } catch (error) {
-    console.error('Не удалось прочитать сохранённый прогресс:', error);
-  }
-
-  const legacyPage = Number.parseInt(localStorage.getItem(legacyKey), 10);
-  if (Number.isInteger(legacyPage) && legacyPage > 0) {
-    return { page: legacyPage, totalPages: legacyPage + 1, paragraphIndex: legacyPage * 5 };
-  }
-
-  return null;
-};
 
 
 const isHeadingParagraph = (text) => {
@@ -253,6 +229,12 @@ const Reader = () => {
       });
   }, [id, token]);
 
+  useEffect(() => {
+    if (book?.title) {
+      document.title = `${book.title} - чтение | BookHub`;
+    }
+  }, [book?.title]);
+
   const paragraphs = useMemo(
     () => normalizeParagraphs(book?.content || ''),
     [book?.content],
@@ -319,44 +301,20 @@ const Reader = () => {
     }
 
     const pageData = pages[currentPage] || pages[0];
-    const progressPayload = {
+    saveBookProgress(id, {
       page: currentPage,
       totalPages: pages.length,
       paragraphIndex: pageData.startIndex,
+      title: book?.title,
+      author: book?.author,
+      genre: book?.genre,
+      cover_image: book?.cover_image,
+      average_rating: book?.average_rating,
       updatedAt: new Date().toISOString(),
-    };
+    });
+  }, [book?.author, book?.average_rating, book?.cover_image, book?.genre, book?.title, currentPage, fontFamily, fontSize, id, pages, resumePrompt, theme]);
 
-    localStorage.setItem(getProgressStorageKey(id), JSON.stringify(progressPayload));
-    localStorage.setItem(getLegacyPageStorageKey(id), String(currentPage));
-  }, [fontSize, theme, fontFamily, currentPage, id, pages, resumePrompt]);
-
-  useEffect(() => {
-    if (!pages.length || resumePrompt) {
-      return undefined;
-    }
-
-    const handleKeyDown = (event) => {
-      const tagName = event.target?.tagName;
-      if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(tagName)) {
-        return;
-      }
-
-      if (event.key === 'ArrowRight') {
-        setCurrentPage((prev) => clamp(prev + 1, 0, pages.length - 1));
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-
-      if (event.key === 'ArrowLeft') {
-        setCurrentPage((prev) => clamp(prev - 1, 0, pages.length - 1));
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pages, resumePrompt]);
-
-  const openPage = (pageIndex) => {
+  const openPage = useCallback((pageIndex) => {
     if (!pages.length) {
       return;
     }
@@ -365,7 +323,33 @@ const Reader = () => {
     setCurrentPage(safeIndex);
     setAnchorParagraphIndex(pages[safeIndex].startIndex);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  }, [pages]);
+
+  useEffect(() => {
+    if (!pages.length || resumePrompt) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      const tagName = event.target?.tagName?.toUpperCase();
+      if (event.repeat || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(tagName)) {
+        return;
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        openPage(currentPage + 1);
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        openPage(currentPage - 1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentPage, openPage, pages.length, resumePrompt]);
 
   const handleResumeReading = () => {
     if (!resumePrompt) {
@@ -379,8 +363,7 @@ const Reader = () => {
   };
 
   const handleStartOver = () => {
-    localStorage.removeItem(getProgressStorageKey(id));
-    localStorage.setItem(getLegacyPageStorageKey(id), '0');
+    clearBookProgress(id);
     setSavedProgress(null);
     setCurrentPage(0);
     setAnchorParagraphIndex(0);
